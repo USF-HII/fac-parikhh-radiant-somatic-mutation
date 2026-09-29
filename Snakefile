@@ -20,29 +20,23 @@ def mtr(*path):
 def wrk(*path):
     return os.path.join(WRK, *path)
 
+#----------------------------------------------------------------------------------------------------
+# helper funcs
+#----------------------------------------------------------------------------------------------------
+
+def build_db():
+    db = {}
+    with open(top("mta", "manifest.tsv")) as f:
+        for line in f:
+            sample, sex, path = line.rstrip("\n").split("\t")
+            db[sample] = { "sex": sex, "path": bio("lab", path) }
+    return db
 
 #----------------------------------------------------------------------------------------------------
 # variables
 #----------------------------------------------------------------------------------------------------
 
-PFX = bio("lab", "radiant", "broad")
-
-DB = {
-    "SM-L5BY4": { "id": "134542", "sex": "F", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set001-002_41samples/134542-0359493956_PM21-00438-A_SM-L5BY4_v1_WGS_GCP.bam"), },
-    "SM-N8UGS": { "id": "134198", "sex": "M", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/134198-0359493977_PM24-00181-A_SM-N8UGS.bam"), },
-    "SM-N8UGU": { "id": "135718", "sex": "M", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135718-0052920102_PM24-00306-A_SM-N8UGU.bam"), },
-    "SM-N8UGV": { "id": "135634", "sex": "F", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135634-0052670702_PM24-00307-A_SM-N8UGV.bam"), },
-    "SM-N8UGW": { "id": "135685", "sex": "M", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135685-0052729302_PM24-00308-A_SM-N8UGW.bam"), },
-    "SM-N8URS": { "id": "135681", "sex": "F", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135681-0052614402_PM24-00312-A_SM-N8URS.bam"), },
-    "SM-N8URT": { "id": "135347", "sex": "M", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135347-0052714802_PM24-00311-A_SM-N8URT.bam"), },
-    "SM-N8URU": { "id": "135753", "sex": "M", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135753-0052786102_PM24-00310-A_SM-N8URU.bam"), },
-    "SM-N8URV": { "id": "135700", "sex": "M", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135700-0052614602_PM24-00309-A_SM-N8URV.bam"), },
-    "SM-NL7S4": { "id": "135635", "sex": "M", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135635-0052902102_PM24-00313-A_SM-NL7S4.bam"), },
-    "SM-NL7S5": { "id": "135577", "sex": "F", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135577-0052786502_PM24-00315-A_SM-NL7S5.bam"), },
-    "SM-NL7S6": { "id": "135264", "sex": "F", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135264-0052831502_PM24-00316-A_SM-NL7S6.bam"), },
-    "SM-NL7S7": { "id": "135508", "sex": "F", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135508-0052786302_PM24-00317-A_SM-NL7S7.bam"), },
-    "SM-NL7S8": { "id": "135169", "sex": "F", "path": join(PFX, "Human-WGS-BAM-1/RADIANT_Set035_14samples/RADIANT_Set035_14samples_BAM/135169-0052902302_PM24-00318-A_SM-NL7S8.bam"), },
-}
+DB = build_db()
 
 MOSAICHUNTER_BLAT = bio("ref", "prj", "somatic-mutation", "mosaichunter", "blat-v369")
 MOSAICHUNTER_JAR = bio("ref", "prj", "somatic-mutation", "mosaichunter", "mosaichunter-4bdadaa7.jar")
@@ -54,7 +48,19 @@ HG38_REP_REG_BED = top("tmp", "data", "ucsc_repetitive_region_hg38.bed")
 HG38_INDEL_BED = top("tmp", "data", "ucsc_indel_hg38.bed")
 HG38_COMMON_BED = top("tmp", "data", "ucsc_common_hg38.bed")
 
-CHROMOSOMES = ["chr1", "chr2", "chr21", "chr22", "chrX"]
+UCSC_HG38_SUPDUP = bio("ref", "ucsc", "hg38", "database", "genomicSuperDups.txt.gz")
+UCSC_HG38_RMSK = bio("ref", "ucsc", "hg38", "database", "rmsk.txt.gz")
+UCSC_HG38_COMM = bio("ref", "ucsc", "hg38", "database", "snp151Common.txt.gz")
+
+if os.environ.get("CHROMOSOMES"):
+    CHROMOSOMES = os.environ["CHROMOSOMES"].split(",")
+else:
+    CHROMOSOMES = [f"chr{n}" for n in range(1, 23)] + ["chrX"]
+
+if "." in RUN:
+    INP_PCT = RUN.split(".")[1]
+else:
+    INP_PCT = ""
 
 #----------------------------------------------------------------------------------------------------
 # containers
@@ -62,7 +68,9 @@ CHROMOSOMES = ["chr1", "chr2", "chr21", "chr22", "chrX"]
 
 CONTAINER_CMD = "bio-img"
 
+GATK = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "gatk", "4.6.2.0.simg"),  "gatk"])
 JAVA = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "openjdk", "8.simg"), "java"])
+SAMTOOLS = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "htslib", "1.23.simg"), "samtools"])
 
 #----------------------------------------------------------------------------------------------------
 # targets
@@ -70,7 +78,7 @@ JAVA = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "openjdk", "8.simg"), "
 
 rule target_main:
     input:
-        expand(wrk("mosaichunter", "{sample}", "{chr}.tsv"), sample=DB, chr=CHROMOSOMES),
+        expand(wrk("out", "mosaichunter", "{sample}.tsv"), sample=DB),
 
 #-----------------------------------------------------------------------------------------------------
 # pragmas
@@ -79,37 +87,114 @@ rule target_main:
 wildcard_constraints: chr="[^/]+"
 wildcard_constraints: sample="[^/]+"
 
+localrules: mosaichunter_agg
+
 #----------------------------------------------------------------------------------------------------
 # rules
 #----------------------------------------------------------------------------------------------------
+
+rule inp_bam:
+    input:
+        ref=HG38_REF,
+        cram=lambda wc: DB[wc.sample]["path"],
+    output:
+        bam=wrk("inp", "bam", "{sample}.bam"),
+    resources:
+        mem="5G",
+        runtime="8h",
+    params:
+        pct=INP_PCT,
+    threads:
+        1
+    benchmark:
+        mtr("inp", "bam", "{sample}.txt"),
+    shell:
+        """
+        if [[ -n "{params.pct}" ]]; then
+          _opts="-s 42.{params.pct}"
+        else
+          _opts=""
+        fi
+
+        {SAMTOOLS} view $_opts --no-PG --reference={input.ref} --bam --output={output.bam} {input.cram}
+
+        {SAMTOOLS} index --bai {output.bam}
+
+        /bin/touch --date='+1 hour' {output.bam}.bai
+        """
+
+rule inp_ref:
+    input:
+        ref=HG38_REF,
+        split_ref_py=top("scripts", "split-ref.py"),
+    output:
+        ref=wrk("inp", "ref", "{chr}.fa")
+    resources:
+       mem="5G",
+       runtime="1h",
+    threads:
+        1
+    benchmark:
+        mtr("inp", "ref", "{chr}.txt"),
+    shell:
+        """
+        python3 {input.split_ref_py} {input.ref} {wildcards.chr} > {output.ref}
+
+        {SAMTOOLS} faidx {output.ref}
+        """
+
+rule inp_ucsc:
+    input:
+        supdup=UCSC_HG38_SUPDUP,
+        rmsk=UCSC_HG38_RMSK,
+        comm=UCSC_HG38_COMM,
+    output:
+        comm=wrk("inp", "ucsc", "common.bed"),
+        indel=wrk("inp", "ucsc", "indel.bed"),
+        repreg=wrk("inp", "ucsc", "repreg.bed"),
+        segdup=wrk("inp", "ucsc", "sedgup.bed"),
+    shell:
+        """
+        gunzip -c {input.comm}   | cut -f2-4 | sort --version-sort > {output.comm}
+
+        gunzip -c {input.comm} \
+          | awk '$12 == "in-del" || $12 == "insertion" || $12 == "deletion" {{ print }}' \
+          | cut -f2-4 \
+          | sort --version-sort \
+          > {output.indel}
+
+        gunzip -c {input.supdup} | cut -f2-4 | sort --version-sort > {output.segdup}
+
+        gunzip -c {input.rmsk}   | cut -f6-8 | sort --version-sort > {output.repreg}
+        """
 
 rule mosaichunter:
     input:
         jar=MOSAICHUNTER_JAR,
         blat=MOSAICHUNTER_BLAT,
-        ref=HG38_REF,
+        ref=wrk("inp", "ref", "{chr}.fa"),
         dbsnp=HG38_DBSNP_VCF,
-        rep_reg_bed=HG38_REP_REG_BED,
-        indel_bed=HG38_INDEL_BED,
-        common_bed=HG38_COMMON_BED,
-        bam=lambda wc: DB[wc.sample],
+        rep_reg_bed=wrk("inp", "ucsc", "repreg.bed"),
+        indel_bed=wrk("inp", "ucsc", "indel.bed"),
+        common_bed=wrk("inp", "ucsc", "common.bed"),
+        bam=wrk("inp", "bam", "{sample}.bam"),
     output:
-        tsv=wrk("mosaichunter", "{sample}", "{chr}.tsv"),
+        tsv=wrk("out", "mosaichunter", "{sample}", "{chr}.tsv"),
     resources:
-       mem="96G",
-       runtime="7d",
+       mem="20G",
+       runtime="21d",
     threads:
         1
     params:
-        work=wrk("mosaichunter", "{sample}", "{chr}.d"),
-        sex="M",
+        sex=lambda wc: DB[wc.sample]["sex"],
+        java_opts="-Xmx20g",
+    shadow:
+        "shallow"
     benchmark:
-        mtr("mosaichunter", "{sample}", "{chr}.txt"),
+        mtr("out", "mosaichunter", "{sample}", "{chr}.txt"),
     shell:
         """
-        /bin/mkdir -p {params.work} && cd {params.work}
-
-        {JAVA} -Xmx90G -jar {input.jar} \
+        {JAVA} {params.java_opts} -jar {input.jar} \
           genome \
           -P misaligned_reads_filter.blat_path={input.blat} \
           -P input_file={input.bam} \
@@ -120,9 +205,20 @@ rule mosaichunter:
           -P common_site_filter.bed_file={input.common_bed} \
           -P mosaic_filter.sex={params.sex} \
           -P valid_references={wildcards.chr} \
+          -P chr={wildcards.chr} \
           -P output_dir=$(pwd)
 
         /bin/mv final.passed.tsv {output.tsv}
+        """
+
+rule mosaichunter_agg:
+    input:
+        tsvs=expand(wrk("out", "mosaichunter", "{{sample}}", "{chr}.tsv"), chr=CHROMOSOMES),
+    output:
+        tsv=wrk("out", "mosaichunter", "{sample}.tsv")
+    shell:
+        """
+        cat {input.tsvs} > {output.tsv}
         """
 
 # vim: ft=snakemake tabstop=4 shiftwidth=4 softtabstop=0 expandtab
