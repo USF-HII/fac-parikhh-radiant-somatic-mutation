@@ -68,7 +68,6 @@ else:
 
 CONTAINER_CMD = "bio-img"
 
-GATK = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "gatk", "4.6.2.0.simg"),  "gatk"])
 JAVA = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "openjdk", "8.simg"), "java"])
 SAMTOOLS = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "htslib", "1.23.simg"), "samtools"])
 
@@ -218,7 +217,36 @@ rule mosaichunter_agg:
         tsv=wrk("out", "mosaichunter", "{sample}.tsv")
     shell:
         """
-        cat {input.tsvs} > {output.tsv}
+        header="
+        chr
+        pos
+        refbase
+        depth
+        bases
+        baseqs
+        majorbase
+        majordepth
+        minorbase
+        minordepth
+        major_minor_allele_with_dbsnp_freq
+        log10_prior_major_homozygous
+        log10_prior_heterozygous
+        log10_prior_minor_homozygous
+        log10_prior_mosaic
+        log10_likelihood_major_homozygous
+        log10_likelihood_heterozygous
+        log10_likelihood_minor_homozygous
+        log10_likelihood_mosaic
+        log10_posterior_major_homozygous
+        log10_posterior_heterozygous
+        log10_posterior_minor_homozygous
+        log10_posterior_mosaic
+        mosaic_posterior_probability
+        "
+
+        echo $header | tr ' ' '\t' > {output.tsv}
+
+        cat {input.tsvs} >> {output.tsv}
         """
 
 # vim: ft=snakemake tabstop=4 shiftwidth=4 softtabstop=0 expandtab
