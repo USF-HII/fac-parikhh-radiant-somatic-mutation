@@ -97,7 +97,7 @@ rule inp_bam:
         ref=HG38_REF,
         cram=lambda wc: DB[wc.sample]["path"],
     output:
-        bam=wrk("inp", "bam", "{sample}.bam"),
+        bam=temp(wrk("inp", "bam", "{sample}.bam")),
     resources:
         mem="5G",
         runtime="8h",
