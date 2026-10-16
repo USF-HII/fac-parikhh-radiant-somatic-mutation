@@ -75,6 +75,10 @@ SAMTOOLS = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "htslib", "1.23.sim
 # targets
 #----------------------------------------------------------------------------------------------------
 
+if os.environ.get("SAMPLES"):
+    SAMPLES = os.environ["SAMPLES"].split(",")
+    DB = { k: v for k, v in DB.items() if k in SAMPLES }
+
 rule target_main:
     input:
         expand(wrk("out", "mosaichunter", "{sample}.tsv"), sample=DB),
