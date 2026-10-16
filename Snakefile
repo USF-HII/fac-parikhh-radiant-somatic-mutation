@@ -238,13 +238,14 @@ rule mosaichunter:
     output:
         tsv=wrk("out", "mosaichunter", "{sample}", "{chr}.tsv"),
     resources:
-       mem="20G",
-       runtime="21d",
+       attempt=lambda wc, attempt: attempt, # params then uses resources.attempt
+       mem=lambda wc, attempt: f"{20 * attempt}G",
+       runtime=lambda wc, attempt: f"{attempt}d",
     threads:
         1
     params:
         sex=lambda wc: DB[wc.sample]["sex"],
-        java_opts="-Xmx20g",
+        java_opts=lambda wc, resources: f"-Xmx{20 * resources.attempt}g",
     shadow:
         "shallow"
     benchmark:
