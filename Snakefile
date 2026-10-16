@@ -52,6 +52,56 @@ UCSC_HG38_SUPDUP = bio("ref", "ucsc", "hg38", "database", "genomicSuperDups.txt.
 UCSC_HG38_RMSK = bio("ref", "ucsc", "hg38", "database", "rmsk.txt.gz")
 UCSC_HG38_COMM = bio("ref", "ucsc", "hg38", "database", "snp151Common.txt.gz")
 
+MOSAICHUNTER_HEADER = """
+    chr
+    pos
+    refbase
+    depth
+    bases
+    baseqs
+    majorbase
+    majordepth
+    minorbase
+    minordepth
+    major_minor_allele_with_dbsnp_freq
+    log10_prior_major_homozygous
+    log10_prior_heterozygous
+    log10_prior_minor_homozygous
+    log10_prior_mosaic
+    log10_likelihood_major_homozygous
+    log10_likelihood_heterozygous
+    log10_likelihood_minor_homozygous
+    log10_likelihood_mosaic
+    log10_posterior_major_homozygous
+    log10_posterior_heterozygous
+    log10_posterior_minor_homozygous
+    log10_posterior_mosaic
+    mosaic_posterior_probability
+""".strip().split()
+
+MOSAICHUNTER_INPUT_INDICES = [MOSAICHUNTER_HEADER.index(f) for f in ["chr", "pos", "pos", "majorbase", "minorbase"]]
+
+ANNOVAR_SCRIPT = bio("ref", "annovar.2503", "table_annovar.pl")
+
+ANNOVAR_DB = bio("ref", "annovar", "humandb")
+
+ANNOVAR_SPEC = """
+    f:avsnp151
+    g:refGene
+    f:clinvar_20250721
+    f:dbnsfp47a
+    f:dbnsfp47a_interpro
+    f:gnomad41_exome
+    f:gnomad41_genome
+    f:GTEx_v8_eQTL
+    f:GTEx_v8_sQTL
+    f:intervar_20250721
+    f:logofunc
+""".strip().split()
+
+ANNOVAR_OPERATION = ",".join([i.split(":")[0] for i in ANNOVAR_SPEC])
+ANNOVAR_PROTOCOL  = ",".join([i.split(":")[1] for i in ANNOVAR_SPEC])
+
 if os.environ.get("CHROMOSOMES"):
     CHROMOSOMES = os.environ["CHROMOSOMES"].split(",")
 else:
@@ -68,6 +118,7 @@ else:
 
 CONTAINER_CMD = "bio-img"
 
+ANNOVAR = " ".join(["/usr/bin/env", "LC_ALL=C", CONTAINER_CMD, bio("img", "prd", "gen", "perl", "5.40.1.simg"), ANNOVAR_SCRIPT])
 JAVA = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "openjdk", "8.simg"), "java"])
 SAMTOOLS = " ".join([CONTAINER_CMD, bio("img", "prd", "gen", "htslib", "1.23.simg"), "samtools"])
 
@@ -81,6 +132,8 @@ if os.environ.get("SAMPLES"):
 
 rule target_main:
     input:
+        expand(wrk("out", "mosaichunter_annotate_final_pivot", "{sample}.txt"), sample=DB),
+        expand(wrk("out", "mosaichunter_annotate_final", "{sample}.tsv"), sample=DB),
         expand(wrk("out", "mosaichunter", "{sample}.tsv"), sample=DB),
 
 #-----------------------------------------------------------------------------------------------------
@@ -222,36 +275,109 @@ rule mosaichunter_agg:
         tsv=wrk("out", "mosaichunter", "{sample}.tsv")
     shell:
         """
-        header="
-        chr
-        pos
-        refbase
-        depth
-        bases
-        baseqs
-        majorbase
-        majordepth
-        minorbase
-        minordepth
-        major_minor_allele_with_dbsnp_freq
-        log10_prior_major_homozygous
-        log10_prior_heterozygous
-        log10_prior_minor_homozygous
-        log10_prior_mosaic
-        log10_likelihood_major_homozygous
-        log10_likelihood_heterozygous
-        log10_likelihood_minor_homozygous
-        log10_likelihood_mosaic
-        log10_posterior_major_homozygous
-        log10_posterior_heterozygous
-        log10_posterior_minor_homozygous
-        log10_posterior_mosaic
-        mosaic_posterior_probability
-        "
-
-        echo $header | tr ' ' '\t' > {output.tsv}
-
         cat {input.tsvs} >> {output.tsv}
         """
+
+rule mosaichunter_annotate_input:
+    input:
+        tsv=wrk("out", "mosaichunter", "{sample}.tsv"),
+    output:
+        tsv=wrk("out", "mosaichunter_annotate_input", "{sample}.tsv"),
+    resources:
+        mem="10G",
+        runtime="4h",
+    threads:
+        1
+    benchmark:
+        mtr("out", "mosaichunter_annotate_input", "{sample}.txt"),
+    run:
+        with open(input.tsv) as f, open(output.tsv, "w") as f_out:
+            for line in f:
+                fields = line.rstrip("\n").split("\t")
+                fields = [fields[i] for i in MOSAICHUNTER_INPUT_INDICES] + fields # add fields for annovar lookup at beginning
+
+                print("\t".join(fields), file=f_out)
+
+rule mosaichunter_annotate:
+    input:
+        annovar_db=ANNOVAR_DB,
+        tsv=wrk("out", "mosaichunter_annotate_input", "{sample}.tsv"),
+    params:
+        annovar_protocol=ANNOVAR_PROTOCOL,
+        annovar_operation=ANNOVAR_OPERATION,
+    output:
+        tsv=wrk("out", "mosaichunter_annotate", "{sample}.tsv"),
+    shadow:
+        "shallow"
+    resources:
+        mem="10G",
+        runtime="4h",
+    threads:
+        1
+    benchmark:
+        mtr("out", "moscaichunter_annotate", "{sample}.txt"),
+    shell:
+        """
+        {ANNOVAR} \
+          --outfile=out \
+          --otherinfo \
+          --nastring=NA \
+          --polish \
+          --buildver=hg38 \
+          --protocol={params.annovar_protocol} \
+          --operation={params.annovar_operation} \
+          {input.tsv} \
+          {input.annovar_db}
+
+        /bin/cp out.hg38_multianno.txt {output.tsv}
+        """
+
+rule mosaichunter_annotate_final:
+    input:
+        tsv=wrk("out", "mosaichunter_annotate", "{sample}.tsv"),
+    output:
+        tsv=wrk("out", "mosaichunter_annotate_final", "{sample}.tsv"),
+    resources:
+        mem="10G",
+        runtime="4h",
+    threads:
+        1
+    benchmark:
+        mtr("out", "mosaichunter_annotate_final", "{sample}.txt"),
+    run:
+        with open(input.tsv) as f, open(output.tsv, "w") as f_out:
+            header = f.readline().rstrip("\n").split("\t")
+            header = MOSAICHUNTER_HEADER + header[len(MOSAICHUNTER_INPUT_INDICES):-len(MOSAICHUNTER_HEADER)]
+            print("\t".join(header), file=f_out)
+
+            for line in f:
+                fields = line.rstrip("\n").split("\t")
+                fields = fields[-len(MOSAICHUNTER_HEADER):] + fields[len(MOSAICHUNTER_INPUT_INDICES):-len(MOSAICHUNTER_HEADER)]
+                print("\t".join(fields), file=f_out)
+
+rule mosaichunter_annotate_final_pivot:
+    input:
+        tsv=wrk("out", "mosaichunter_annotate_final", "{sample}.tsv"),
+    output:
+        txt=wrk("out", "mosaichunter_annotate_final_pivot", "{sample}.txt")
+    resources:
+        mem="10G",
+        runtime="4h",
+    threads:
+        1
+    benchmark:
+        mtr("out", "mosaichunter_annotate_final_pivot", "{sample}.txt"),
+    run:
+        with open(input.tsv) as f, open(output.txt, "w") as f_out:
+            header = f.readline().rstrip("\n").split("\t")
+            length = max(len(f) for f in header)
+
+            for line in f:
+                fields = line.rstrip("\n").split("\t")
+
+                for col, val in zip(header, fields):
+                    print(f"{col:<{length}}\t{val}", file=f_out)
+
+                print(file=f_out)
 
 # vim: ft=snakemake tabstop=4 shiftwidth=4 softtabstop=0 expandtab
