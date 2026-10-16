@@ -101,6 +101,7 @@ rule inp_bam:
     resources:
         mem="5G",
         runtime="8h",
+        io=1,
     params:
         pct=INP_PCT,
     threads:
