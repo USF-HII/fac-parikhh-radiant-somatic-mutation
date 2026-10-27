@@ -144,6 +144,9 @@ wildcard_constraints: chr="[^/]+"
 wildcard_constraints: sample="[^/]+"
 
 localrules: mosaichunter_agg
+localrules: mosaichunter_annotate_input
+localrules: mosaichunter_annotate_final
+localrules: mosaichunter_annotate_final_pivot
 
 #----------------------------------------------------------------------------------------------------
 # rules
